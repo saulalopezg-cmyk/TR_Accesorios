@@ -49,6 +49,7 @@
           <li><a href="sales.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-basket"></i></div><div class="navLateral-body-cr hide-on-tablet">Compras</div></a></li>
           <li><a href="providers.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-truck"></i></div><div class="navLateral-body-cr hide-on-tablet">Proveedores</div></a></li>
           <li><a href="ventas.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Ventas</div></a></li>
+          <li><a href="traslados.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Traslado</div></a></li>
           <li><a href="cuentas-cobrar.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-balance-wallet"></i></div><div class="navLateral-body-cr hide-on-tablet">Cuentas por cobrar</div></a></li>
            </ul>
       </nav>
@@ -357,6 +358,59 @@ window.addEventListener("DOMContentLoaded", () => {
   Swal.fire("Venta registrada", "", "success");
 });
 });
+
+// ---- TRASLADO A CENTRO DE INSTALACIÓN ----
+document.getElementById("btn-trasladoCI").addEventListener("click", () => {
+  if (carrito.length === 0) {
+    Swal.fire("Carrito vacío", "Agrega al menos un producto para trasladar", "warning");
+    return;
+  }
+
+  Swal.fire({
+    title: "¿Trasladar al Centro de Instalación?",
+    text: "Se registrará el traslado de los productos seleccionados.",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Sí, trasladar"
+  }).then((result) => {
+    if (!result.isConfirmed) return;
+
+    const traslado = {
+      fecha: new Date().toISOString().split("T")[0],
+      productos: carrito.map(p => ({
+        codigo: p.codigo,
+        nombre: p.nombre,
+        cantidad: p.cantidad
+      })),
+      estado: "pendiente",
+      origen: "Bodega principal",
+      destino: "Centro de instalación"
+    };
+
+    // Guardar traslado en Firebase
+    push(ref(db, "traslados_ci"), traslado).then(() => {
+      registrarAccion("trasladó productos", "traslados_ci", traslado);
+
+      // Restar stock del inventario principal
+      traslado.productos.forEach(p => {
+        const prodRef = ref(db, "productos/" + p.codigo);
+        get(prodRef).then(snapshot => {
+          const actual = snapshot.val();
+          if (actual) {
+            const nuevoStock = (actual.cantidad || 0) - p.cantidad;
+            update(prodRef, { cantidad: nuevoStock });
+          }
+        });
+      });
+
+      carrito = [];
+      renderizarCarrito();
+      Swal.fire("Traslado registrado", "Los productos se enviaron al Centro de Instalación", "success");
+    });
+  });
+});
+
+
   // Historial
   let historial = {};
   onValue(ref(db, "ventas"), (snapshot) => {

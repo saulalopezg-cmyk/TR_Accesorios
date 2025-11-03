@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Traslados – TR ACCESORIOS</title>
+
+  <!-- Estilos base -->
+  <link rel="stylesheet" href="css/normalize.css" />
+  <link rel="stylesheet" href="css/sweetalert2.css" />
+  <link rel="stylesheet" href="css/material.min.css" />
+  <link rel="stylesheet" href="css/material-design-iconic-font.min.css" />
+  <link rel="stylesheet" href="css/jquery.mCustomScrollbar.css" />
+  <link rel="stylesheet" href="css/main.css" />
+
+  <!-- Scripts base -->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+  <script>window.jQuery || document.write('<script src="js/jquery-1.11.2.min.js"><\/script>')</script>
+  <script src="js/material.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="js/jquery.mCustomScrollbar.concat.min.js"></script>
+  <script src="js/main.js"></script>
+</head>
+<body>
+  <!-- Barra lateral -->
+  <section class="full-width navLateral">
+    <div class="full-width navLateral-bg btn-menu"></div>
+    <div class="full-width navLateral-body">
+      <div class="full-width navLateral-body-logo text-center tittles">
+        <i class="zmdi zmdi-close btn-menu"></i> TR ACCESORIOS
+      </div>
+      <figure class="full-width" style="height: 77px;">
+        <div class="navLateral-body-cl">
+          <img src="assets/img/logo.jpg" alt="Logo" />
+        </div>
+        <figcaption class="navLateral-body-cr hide-on-tablet">
+          <span>Usuario<br /><small>Rol</small></span>
+        </figcaption>
+      </figure>
+      <div class="full-width tittles navLateral-body-tittle-menu">
+        <i class="zmdi zmdi-desktop-mac"></i><span class="hide-on-tablet"> MENÚ</span>
+      </div>
+      <nav class="full-width">
+        <ul class="full-width list-unstyle menu-principal">
+          <li><a href="home.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-view-dashboard"></i></div><div class="navLateral-body-cr hide-on-tablet">Inicio</div></a></li>
+          <li><a href="inventory.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-store"></i></div><div class="navLateral-body-cr hide-on-tablet">Inventario</div></a></li>
+          <li><a href="ventas.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Ventas</div></a></li>
+          <li><a href="traslados_ci.html" class="full-width active"><div class="navLateral-body-cl"><i class="zmdi zmdi-truck"></i></div><div class="navLateral-body-cr hide-on-tablet">Traslados CI</div></a></li>
+        </ul>
+      </nav>
+    </div>
+  </section>
+
+  <!-- Navbar -->
+  <div class="full-width navBar">
+    <div class="full-width navBar-options">
+      <i class="zmdi zmdi-more-vert btn-menu" id="btn-menu"></i>
+      <nav class="navBar-options-list">
+        <ul class="list-unstyle">
+          <li class="btn-exit" onclick="logout()">
+            <i class="zmdi zmdi-power"></i>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Contenido -->
+  <section class="full-width pageContent">
+    <div class="mdl-tabs mdl-js-tabs mdl-js-ripple-effect">
+      <div class="mdl-tabs__tab-bar">
+        <a href="#tabNewTraslado" class="mdl-tabs__tab is-active">Registrar traslado</a>
+        <a href="#tabListTraslados" class="mdl-tabs__tab">Historial de traslados</a>
+      </div>
+
+      <!-- Nuevo traslado -->
+      <div class="mdl-tabs__panel is-active" id="tabNewTraslado">
+        <div class="mdl-grid">
+          <div class="mdl-cell mdl-cell--8-col mdl-cell--2-offset-desktop">
+            <div class="full-width panel mdl-shadow--2dp">
+              <div class="full-width panel-tittle bg-primary text-center tittles">Registrar traslado a Centro de Instalación</div>
+              <div class="full-width panel-content">
+                <form id="form-traslado">
+                  <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+                    <select id="productoTraslado" class="mdl-textfield__input">
+                      <option value="">Selecciona un producto</option>
+                    </select>
+                    <label class="mdl-textfield__label" for="productoTraslado"></label>
+                  </div>
+                  <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+                    <input type="number" id="cantidadTraslado" class="mdl-textfield__input" />
+                    <label class="mdl-textfield__label" for="cantidadTraslado">Cantidad</label>
+                  </div>
+                  <p class="text-center">
+                    <button id="btn-agregarTraslado" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+                      Agregar al traslado
+                    </button>
+                  </p>
+                </form>
+                <div class="mdl-cell mdl-cell--12-col">
+                  <h5 class="text-center">Lista de traslado</h5>
+                  <table class="mdl-data-table mdl-js-data-table full-width" id="tablaTraslado">
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <p class="text-center">
+                  <button id="btn-finalizarTraslado" class="mdl-button mdl-js-button mdl-button--raised mdl-button--accent">
+                    Finalizar traslado
+                  </button>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historial -->
+      <div class="mdl-tabs__panel" id="tabListTraslados">
+        <div class="mdl-grid">
+          <div class="mdl-cell mdl-cell--10-col mdl-cell--1-offset-desktop">
+            <div class="full-width panel mdl-shadow--2dp">
+              <div class="full-width panel-tittle bg-success text-center tittles">Historial de traslados</div>
+              <div class="full-width panel-content">
+                <div class="mdl-list" id="lista-traslados"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+import { getDatabase, ref, get, push, update, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+
+// Config Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCE9UY3P3oEFZ_cgX7d5Ox0lFZiL_9Uszs",
+  authDomain: "accesoriostr-7f01e.firebaseapp.com",
+  databaseURL: "https://accesoriostr-7f01e-default-rtdb.firebaseio.com",
+  projectId: "accesoriostr-7f01e",
+  storageBucket: "accesoriostr-7f01e.firebasestorage.app",
+  messagingSenderId: "927871540022",
+  appId: "1:927871540022:web:eb4a9a446cc0a6530a7197"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+// Validar sesión
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    Swal.fire("Sesión cerrada", "Debes iniciar sesión para acceder", "info")
+      .then(() => window.location.href = "index.html");
+  }
+});
+
+const productoSelect = document.getElementById("productoTraslado");
+const cantidadInput = document.getElementById("cantidadTraslado");
+const tabla = document.querySelector("#tablaTraslado tbody");
+const listaTraslados = document.getElementById("lista-traslados");
+let trasladoActual = [];
+let productosCache = {};
+
+// Cargar productos
+get(ref(db, "productos")).then(snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
+  Object.entries(data).forEach(([codigo, prod]) => {
+    productosCache[codigo] = prod;
+    const option = document.createElement("option");
+    option.value = codigo;
+    option.textContent = `${prod.codigo} – ${prod.nombre}`;
+    productoSelect.appendChild(option);
+  });
+});
+
+// Agregar producto al traslado
+document.getElementById("btn-agregarTraslado").addEventListener("click", (e) => {
+  e.preventDefault();
+  const codigo = productoSelect.value;
+  const cantidad = parseInt(cantidadInput.value.trim());
+  if (!codigo || isNaN(cantidad) || cantidad <= 0) {
+    Swal.fire("Datos requeridos", "Selecciona un producto y cantidad válida", "warning");
+    return;
+  }
+
+  const prod = productosCache[codigo];
+  if (!prod || cantidad > prod.cantidad) {
+    Swal.fire("Sin stock", `Solo hay ${prod?.cantidad ?? 0} disponibles`, "error");
+    return;
+  }
+
+  // Guardar todos los datos del producto en trasladoActual
+  trasladoActual.push({
+    codigo: prod.codigo,
+    nombre: prod.nombre,
+    cantidad: cantidad,
+    precioSugerido: prod.precioSugerido,
+    precioTope: prod.precioTope,
+    proveedor: prod.proveedor
+  });
+
+  productoSelect.selectedIndex = 0;
+  cantidadInput.value = "";
+  renderizarTabla();
+});
+
+function renderizarTabla() {
+  tabla.innerHTML = "";
+  trasladoActual.forEach((p, i) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${p.nombre}</td>
+      <td>${p.cantidad}</td>
+      <td><button onclick="eliminarTraslado(${i})" class="mdl-button mdl-button--icon"><i class="zmdi zmdi-close"></i></button></td>
+    `;
+    tabla.appendChild(row);
+  });
+}
+
+window.eliminarTraslado = function(i) {
+  trasladoActual.splice(i, 1);
+  renderizarTabla();
+};
+
+// Finalizar traslado
+document.getElementById("btn-finalizarTraslado").addEventListener("click", () => {
+  if (trasladoActual.length === 0) {
+    Swal.fire("Sin productos", "Agrega al menos un producto al traslado", "info");
+    return;
+  }
+
+  // Guardar cada producto como nodo independiente en productos_ci
+  trasladoActual.forEach(p => {
+    const productoTraslado = {
+      ...p, // todos los datos del producto
+      fecha: new Date().toISOString().split("T")[0],
+      origen: "Bodega principal",
+      destino: "Centro de instalación",
+      estado: "pendiente"
+    };
+    push(ref(db, "productos_ci"), productoTraslado);
+  });
+
+  // Actualizar stock en productos originales
+  trasladoActual.forEach(p => {
+    const prodRef = ref(db, "productos/" + p.codigo);
+    get(prodRef).then(snapshot => {
+      const actual = snapshot.val();
+      if (actual) update(prodRef, { cantidad: (actual.cantidad || 0) - p.cantidad });
+    });
+  });
+
+  trasladoActual = [];
+  renderizarTabla();
+  Swal.fire("Traslado registrado", "Se trasladaron los productos al Centro de Instalación", "success");
+});
+
+// Mostrar inventario / historial en productos_ci
+onValue(ref(db, "productos_ci"), snapshot => {
+  const data = snapshot.val() || {};
+  listaTraslados.innerHTML = "";
+
+  Object.values(data).forEach(p => {
+    const item = document.createElement("div");
+    item.className = "mdl-list__item mdl-list__item--three-line";
+    item.innerHTML = `
+      <span class="mdl-list__item-primary-content">
+        <i class="zmdi zmdi-truck mdl-list__item-avatar"></i>
+        <span><strong>${p.destino}</strong> – ${p.fecha}</span>
+        <span class="mdl-list__item-sub-title">
+          ${p.nombre} - Cant: ${p.cantidad}, PrecioSugerido: ${p.precioSugerido}, PrecioTope: ${p.precioTope}, Proveedor: ${p.proveedor}
+        </span>
+      </span>
+      <span class="mdl-list__item-secondary-action">
+        ${p.estado === "pendiente"
+          ? `<button class="mdl-button mdl-js-button mdl-button--icon" onclick="marcarRecibido('${p.codigo}_${p.fecha}')">
+              <i class="zmdi zmdi-check"></i>
+            </button>`
+          : `<i class="zmdi zmdi-check-all" title="Recibido"></i>`}
+      </span>
+    `;
+    listaTraslados.appendChild(item);
+  });
+});
+
+// Marcar traslado recibido
+window.marcarRecibido = function(id) {
+  // Aquí asumimos que id es la clave de Firebase, si cambiaste la lógica, ajusta
+  update(ref(db, "productos_ci/" + id), { estado: "recibido" }).then(() => {
+    Swal.fire("Traslado recibido", "El traslado fue marcado como recibido", "success");
+  });
+};
+</script>
+
+
+</body>
+</html>
