@@ -102,7 +102,7 @@
 
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
                   <input type="number" step="0.01" id="ventaPrecioManual" class="mdl-textfield__input" />
-                  <label class="mdl-textfield__label" for="ventaPrecioManual">Precio manual</label>
+                  <label class="mdl-textfield__label" for="ventaPrecioManual">Precio manual (opcional)</label>
                 </div>
 
                 <p class="text-center">
@@ -139,6 +139,9 @@
                 <button id="btn-finalizarVenta" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
                   Finalizar venta
                 </button>
+                <button id="btn-trasladoCI" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored" style="margin-left:8px;">
+                  Trasladar a Centro de Instalación
+                </button>
               </p>
             </div>
           </div>
@@ -153,7 +156,7 @@
           <div class="full-width panel mdl-shadow--2dp">
             <div class="full-width panel-tittle bg-success text-center tittles">Historial de ventas</div>
             <div class="full-width panel-content">
-              <div class="text-right">
+              <div class="text-right" style="margin-bottom:8px;">
                 <input type="date" id="filtroFecha" class="mdl-textfield__input" style="margin-right:10px;" />
                 <input type="text" id="filtroCliente" placeholder="Buscar por cliente..." class="mdl-textfield__input" style="width:30%;" />
                 <button id="btn-pdf-ventas" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
@@ -206,6 +209,8 @@ const filtroCliente = document.getElementById("filtroCliente");
 const filtroFecha = document.getElementById("filtroFecha");
 let carrito = [];
 let productosCache = {};
+let historial = {};
+let idVentaEditando = null;
 
 // --- Cargar clientes y productos ---
 window.addEventListener("DOMContentLoaded", () => {
@@ -215,7 +220,7 @@ window.addEventListener("DOMContentLoaded", () => {
     Object.entries(data).forEach(([codigo, cliente]) => {
       const opt = document.createElement("option");
       opt.value = codigo;
-      opt.textContent = `${cliente.nombre} ${cliente.apellido}`;
+      opt.textContent = `${cliente.nombre} ${cliente.apellido || ""}`;
       clienteSelect.appendChild(opt);
     });
   });
@@ -227,18 +232,20 @@ window.addEventListener("DOMContentLoaded", () => {
       productosCache[codigo] = prod;
       const opt = document.createElement("option");
       opt.value = codigo;
-      opt.textContent = `${prod.codigo} – ${prod.nombre}`;
+      // mostrar el field "codigo" si existe, sino la key
+      opt.textContent = `${prod.codigo || codigo} – ${prod.nombre}`;
       productoSelect.appendChild(opt);
     });
   });
 });
 
-// --- Agregar al carrito ---
-document.getElementById("btn-agregarCarrito").addEventListener("click", (e) => {
+// --- AGREGAR AL CARRITO con validación de precio tope (y confirmación) ---
+document.getElementById("btn-agregarCarrito").addEventListener("click", async (e) => {
   e.preventDefault();
   const codigo = productoSelect.value;
   const cantidad = parseInt(cantidadInput.value.trim());
-  const precioManual = parseFloat(document.getElementById("ventaPrecioManual").value.trim() || "0");
+  const precioManualRaw = document.getElementById("ventaPrecioManual").value.trim();
+  const precioManual = precioManualRaw === "" ? NaN : parseFloat(precioManualRaw);
 
   if (!codigo || isNaN(cantidad) || cantidad <= 0) {
     Swal.fire("Datos requeridos", "Selecciona producto y cantidad válida", "warning");
@@ -246,40 +253,81 @@ document.getElementById("btn-agregarCarrito").addEventListener("click", (e) => {
   }
 
   const prod = productosCache[codigo];
-  if (!prod) return Swal.fire("Error", "Producto no encontrado", "error");
-
-  if (cantidad > prod.cantidad) {
-    Swal.fire("Sin stock", `Solo hay ${prod.cantidad} disponibles`, "error");
+  if (!prod) {
+    Swal.fire("Error", "Producto no encontrado", "error");
     return;
   }
 
-  let precioUsar = prod.precioSugerido || 0;
-  if (precioManual > 0) {
-    if (precioManual < (prod.precioTope || 0)) {
-      Swal.fire("Precio inválido", `El precio no puede ser menor a Q${prod.precioTope.toFixed(2)}`, "warning");
-      return;
-    }
-    precioUsar = precioManual;
+  if (cantidad > (prod.cantidad || 0)) {
+    Swal.fire("Sin stock", `Solo hay ${prod.cantidad ?? 0} disponibles`, "error");
+    return;
   }
 
+  // Precio por defecto (sugerido)
+  let precioUsar = Number(prod.precioSugerido || 0);
+
+  // Si el usuario ingresó precio manual
+  if (!isNaN(precioManual) && precioManual > 0) {
+    // Si es menor que el precioTope -> advertir y pedir confirmación
+    const precioTope = Number(prod.precioTope || 0);
+    const precioSugerido = Number(prod.precioSugerido || 0);
+
+    if (precioManual < precioTope) {
+      // Mostrar advertencia con opciones
+      const resp = await Swal.fire({
+        icon: "warning",
+        title: "Precio menor al precio tope",
+        html: `
+          <p>Precio ingresado: <strong>Q${precioManual.toFixed(2)}</strong></p>
+          <p>Precio tope: <strong>Q${precioTope.toFixed(2)}</strong></p>
+          <p>Precio sugerido: <strong>Q${precioSugerido.toFixed(2)}</strong></p>
+          <hr>
+          <p>¿Deseas continuar con el precio ingresado?</p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Sí, continuar",
+        cancelButtonText: "No, cancelar",
+        allowOutsideClick: false
+      });
+
+      if (!resp.isConfirmed) {
+        // usuario canceló
+        return;
+      }
+      // si confirma, usamos el precio ingresado aun siendo menor
+      precioUsar = precioManual;
+    } else {
+      // precioManual >= precioTope -> OK
+      precioUsar = precioManual;
+    }
+  } // else no precio manual: usar precio sugerido
+
+  // Agregar o actualizar existente en carrito
   const existente = carrito.find(p => p.codigo === codigo);
   if (existente) {
-    if ((existente.cantidad + cantidad) > prod.cantidad) {
+    if ((existente.cantidad + cantidad) > (prod.cantidad || 0)) {
       Swal.fire("Stock insuficiente", "Superas la cantidad disponible", "error");
       return;
     }
     existente.cantidad += cantidad;
-    existente.precio = precioUsar;
+    existente.precio = precioUsar; // actualizamos precio con el ingresado/confirmado
   } else {
-    carrito.push({ codigo, nombre: prod.nombre, cantidad, precio: precioUsar });
+    carrito.push({
+      codigo,
+      nombre: prod.nombre,
+      cantidad,
+      precio: precioUsar
+    });
   }
 
+  // limpiar inputs
   cantidadInput.value = "";
   document.getElementById("ventaPrecioManual").value = "";
   productoSelect.selectedIndex = 0;
   renderizarCarrito();
 });
 
+// --- RENDERIZAR CARRITO ---
 function renderizarCarrito() {
   tabla.innerHTML = "";
   let total = 0;
@@ -290,14 +338,393 @@ function renderizarCarrito() {
     tr.innerHTML = `
       <td>${item.nombre}</td>
       <td>${item.cantidad}</td>
-      <td>Q${item.precio.toFixed(2)}</td>
+      <td>Q${Number(item.precio).toFixed(2)}</td>
       <td>Q${subtotal.toFixed(2)}</td>
-      <td><button onclick="eliminarDelCarrito(${i})" class="mdl-button mdl-button--icon"><i class="zmdi zmdi-close"></i></button></td>`;
+      <td>
+        <button onclick="eliminarDelCarrito(${i})" class="mdl-button mdl-button--icon" title="Eliminar">
+          <i class="zmdi zmdi-close"></i>
+        </button>
+      </td>
+    `;
     tabla.appendChild(tr);
   });
   totalDisplay.textContent = "Q" + total.toFixed(2);
 }
 window.eliminarDelCarrito = (i) => { carrito.splice(i, 1); renderizarCarrito(); };
+
+// --- FINALIZAR VENTA ---
+document.getElementById("btn-finalizarVenta").addEventListener("click", async () => {
+  const cliente = clienteSelect.value;
+  if (!cliente) {
+    Swal.fire("Selecciona cliente", "", "info");
+    return;
+  }
+  if (carrito.length === 0) {
+    Swal.fire("Carrito vacío", "Agrega al menos un producto", "warning");
+    return;
+  }
+
+  const venta = {
+    cliente,
+    fecha: new Date().toISOString().split("T")[0],
+    total: carrito.reduce((t, p) => t + (p.precio * p.cantidad), 0),
+    productos: carrito.map(p => ({ codigo: p.codigo, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio }))
+  };
+
+  // Generar código incremental V001...
+  const snapshot = await get(ref(db, "ventas"));
+  const data = snapshot.val() || {};
+  const codigos = Object.values(data)
+    .map(v => parseInt((v.codigo || "V000").replace("V", "")))
+    .filter(n => !isNaN(n));
+  const max = codigos.length ? Math.max(...codigos) : 0;
+  venta.codigo = "V" + (max + 1).toString().padStart(3, "0");
+
+  const refVenta = idVentaEditando ? ref(db, "ventas/" + idVentaEditando) : push(ref(db, "ventas"));
+  await set(refVenta, venta);
+
+  // registrar acción
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      push(ref(db, "registros"), {
+        fecha: new Date().toISOString(),
+        uid: user.uid,
+        correo: user.email,
+        accion: "registró una venta",
+        modulo: "ventas",
+        detalles: { codigo: venta.codigo, cliente: venta.cliente, total: venta.total }
+      });
+    }
+  } catch (err) {
+    // noop
+  }
+
+  // actualizar stock
+  for (const p of venta.productos) {
+    const prodRef = ref(db, "productos/" + p.codigo);
+    const prodSnap = await get(prodRef);
+    const actual = prodSnap.val();
+    const nuevoStock = (actual?.cantidad || 0) - p.cantidad;
+    await update(prodRef, { cantidad: nuevoStock });
+  }
+
+  carrito = [];
+  renderizarCarrito();
+  clienteSelect.selectedIndex = 0;
+  idVentaEditando = null;
+  Swal.fire("Venta registrada", "", "success");
+});
+
+// ---- TRASLADO A CENTRO DE INSTALACIÓN ----
+document.getElementById("btn-trasladoCI").addEventListener("click", () => {
+  if (carrito.length === 0) {
+    Swal.fire("Carrito vacío", "Agrega al menos un producto para trasladar", "warning");
+    return;
+  }
+
+  Swal.fire({
+    title: "¿Trasladar al Centro de Instalación?",
+    text: "Se registrará el traslado de los productos seleccionados.",
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Sí, trasladar"
+  }).then(async (result) => {
+    if (!result.isConfirmed) return;
+
+    const traslado = {
+      fecha: new Date().toISOString().split("T")[0],
+      productos: carrito.map(p => ({ codigo: p.codigo, nombre: p.nombre, cantidad: p.cantidad })),
+      estado: "pendiente",
+      origen: "Bodega principal",
+      destino: "Centro de instalación"
+    };
+
+    await push(ref(db, "traslados_ci"), traslado);
+
+    // restar stock del inventario principal
+    for (const p of traslado.productos) {
+      const prodRef = ref(db, "productos/" + p.codigo);
+      const snapshot = await get(prodRef);
+      const actual = snapshot.val();
+      const nuevoStock = (actual?.cantidad || 0) - p.cantidad;
+      await update(prodRef, { cantidad: nuevoStock });
+    }
+
+    carrito = [];
+    renderizarCarrito();
+    Swal.fire("Traslado registrado", "Los productos se enviaron al Centro de Instalación", "success");
+  });
+});
+
+// --- HISTORIAL Y FILTROS ---
+onValue(ref(db, "ventas"), (snap) => {
+  historial = snap.val() || {};
+  renderizarVentas();
+});
+
+function renderizarVentas() {
+  listaVentas.innerHTML = "";
+  const texto = (filtroCliente.value || "").trim().toLowerCase();
+  const fechaFiltro = filtroFecha.value;
+  Object.entries(historial).forEach(([id, v]) => {
+    const nombreCliente = clienteSelect.querySelector(`option[value="${v.cliente}"]`)?.textContent ?? v.cliente;
+    const coincideCliente = nombreCliente.toLowerCase().includes(texto);
+    const coincideFecha = fechaFiltro ? v.fecha === fechaFiltro : true;
+    if (!coincideCliente || !coincideFecha) return;
+    const resumen = (v.productos || []).map(p => `${p.nombre} (${p.cantidad})`).join(", ");
+    const item = document.createElement("div");
+    item.className = "mdl-list__item mdl-list__item--three-line";
+    item.innerHTML = `
+      <span class="mdl-list__item-primary-content">
+        <i class="zmdi zmdi-receipt mdl-list__item-avatar"></i>
+        <span><strong>${nombreCliente}</strong> – Q${Number(v.total).toFixed(2)}</span>
+        <span class="mdl-list__item-sub-title">${v.fecha} | ${resumen}</span>
+      </span>
+      <span class="mdl-list__item-secondary-action">
+        <button class="mdl-button mdl-js-button mdl-button--icon" onclick="imprimirVenta('${id}')">
+          <i class="zmdi zmdi-print"></i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--icon" onclick="editarVenta('${id}')">
+          <i class="zmdi zmdi-edit"></i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--icon" onclick="eliminarVenta('${id}')">
+          <i class="zmdi zmdi-delete"></i>
+        </button>
+      </span>
+    `;
+    listaVentas.appendChild(item);
+  });
+}
+filtroCliente.addEventListener("input", renderizarVentas);
+filtroFecha.addEventListener("change", renderizarVentas);
+
+// --- IMPRIMIR LISTADO FILTRADO (PDF) ---
+document.getElementById("btn-pdf-ventas").addEventListener("click", () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("HISTORIAL DE VENTAS – TR ACCESORIOS", 20, 20);
+  doc.setFontSize(10);
+  doc.text("Fecha: " + new Date().toLocaleDateString(), 20, 28);
+  const texto = (filtroCliente.value || "").trim().toLowerCase();
+  const fechaFiltro = filtroFecha.value;
+  const rows = Object.entries(historial)
+    .filter(([_, v]) => {
+      const cliente = clienteSelect.querySelector(`option[value="${v.cliente}"]`)?.textContent ?? v.cliente;
+      return (
+        cliente.toLowerCase().includes(texto) &&
+        (fechaFiltro ? v.fecha === fechaFiltro : true)
+      );
+    })
+    .map(([_, v]) => {
+      const cliente = clienteSelect.querySelector(`option[value="${v.cliente}"]`)?.textContent ?? v.cliente;
+      const resumen = (v.productos || []).map(p => `${p.nombre} (${p.cantidad})`).join(", ");
+      return [cliente, v.fecha, resumen, "Q" + Number(v.total).toFixed(2)];
+    });
+  doc.autoTable({
+    head: [["Cliente", "Fecha", "Productos", "Total"]],
+    body: rows,
+    startY: 35,
+    theme: "striped"
+  });
+  doc.save("ventas_filtradas_tr_accesorios.pdf");
+});
+
+// --- EDITAR / IMPRIMIR / ELIMINAR VENTA ---
+window.editarVenta = function (id) {
+  const venta = historial[id];
+  if (!venta) return;
+  idVentaEditando = id;
+  carrito = [];
+  // revertir stock y llenar carrito con los productos de la venta (para permitir editar)
+  (venta.productos || []).forEach(async (p) => {
+    const productoRef = ref(db, "productos/" + p.codigo);
+    const snap = await get(productoRef);
+    const actual = snap.val();
+    if (actual) {
+      const nuevoStock = (actual.cantidad || 0) + p.cantidad;
+      await update(productoRef, { cantidad: nuevoStock });
+    }
+    carrito.push({ ...p }); // mantiene precio y cantidad
+    renderizarCarrito();
+  });
+  clienteSelect.value = venta.cliente;
+  document.querySelector('[href="#tabNewVenta"]').click();
+  setTimeout(() => {
+    document.querySelectorAll('.mdl-textfield').forEach(el => el.classList.add('is-dirty'));
+  }, 50);
+};
+
+window.imprimirVenta = async function (id) {
+  const venta = historial[id];
+  if (!venta) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+
+  const clienteData = await get(ref(db, "clientes/" + venta.cliente)).then(s => s.val() || {});
+  const clienteNombre = clienteData.nombre ? `${clienteData.nombre} ${clienteData.apellido || ""}` : venta.cliente;
+  const telefono = clienteData.telefono || "-";
+  const direccion = clienteData.direccion || "-";
+  const nit = clienteData.nit || "-";
+  const codigoVenta = venta.codigo || id.slice(-6).toUpperCase();
+  const fecha = venta.fecha;
+
+  function imprimirMitad(yOffset, copiaTexto) {
+    // Logo
+    try { doc.addImage("assets/img/logo.png", "PNG", 15, yOffset, 25, 25); } catch(e){}
+
+    doc.setFontSize(14);
+    doc.text("TR-ACCESORIOS", 43, yOffset + 10);
+    doc.setFontSize(10);
+    doc.text("NOTA DE ENTREGA", 43, yOffset + 16);
+    doc.setFontSize(9);
+    doc.text(`Código venta: ${codigoVenta}`, 150, yOffset + 12);
+    doc.text(`Fecha: ${fecha}`, 150, yOffset + 16);
+    doc.setFontSize(12);
+    doc.text(copiaTexto, 175, yOffset + 8, { align: "right" });
+
+    // Datos cliente
+    doc.setFontSize(9);
+    doc.text("Cliente:", 15, yOffset + 30);
+    doc.text(clienteNombre, 40, yOffset + 30);
+    doc.text("Tel:", 15, yOffset + 35);
+    doc.text(telefono, 40, yOffset + 35);
+    doc.text("Dirección:", 15, yOffset + 40);
+    doc.text(direccion, 40, yOffset + 40);
+    doc.text("NIT:", 15, yOffset + 45);
+    doc.text(nit, 40, yOffset + 45);
+
+    // Tabla productos
+    const rows = (venta.productos || []).map(p => [
+      p.codigo || "-",
+      p.nombre,
+      p.cantidad,
+      "Q" + Number(p.precio).toFixed(2),
+      "Q" + (p.cantidad * p.precio).toFixed(2)
+    ]);
+
+    doc.autoTable({
+      head: [["Código", "Producto", "Cant.", "Precio Unitario", "Subtotal"]],
+      body: rows,
+      startY: yOffset + 50,
+      theme: "grid",
+      styles: { fontSize: 9 },
+      margin: { left: 15, right: 15 }
+    });
+
+    const tablaY = doc.lastAutoTable.finalY + 5;
+
+    doc.setFontSize(10);
+    doc.text("Total: Q" + Number(venta.total).toFixed(2), 140, tablaY);
+  }
+
+  // ORIGINAL (mitad superior)
+  imprimirMitad(10, "ORIGINAL");
+
+  // Separador
+  doc.setLineWidth(0.2);
+  doc.line(10, 143, 200, 143);
+  doc.text("Corte de hoja ✂", 105, 145, { align: "center" });
+
+  // COPIA (mitad inferior)
+  imprimirMitad(150, "COPIA");
+
+  doc.save(`nota_${codigoVenta}.pdf`);
+};
+
+window.eliminarVenta = function (id) {
+  const venta = historial[id];
+  if (!venta) return;
+  Swal.fire({
+    title: "¿Eliminar esta venta?",
+    text: "Se restaurará el stock de productos vendidos",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Sí, eliminar"
+  }).then(async (result) => {
+    if (!result.isConfirmed) return;
+    // Restaurar stock
+    for (const p of (venta.productos || [])) {
+      const productoRef = ref(db, "productos/" + p.codigo);
+      const snap = await get(productoRef);
+      const actual = snap.val();
+      const nuevoStock = (actual?.cantidad || 0) + p.cantidad;
+      await update(productoRef, { cantidad: nuevoStock });
+    }
+    await set(ref(db, "ventas/" + id), null);
+    // registrar acción
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        push(ref(db, "registros"), {
+          fecha: new Date().toISOString(),
+          uid: user.uid,
+          correo: user.email,
+          accion: "eliminó una venta",
+          modulo: "ventas",
+          detalles: { codigo: venta.codigo, cliente: venta.cliente, total: venta.total }
+        });
+      }
+    } catch(e){}
+    Swal.fire("Venta eliminada", "El stock ha sido restaurado", "success");
+  });
+};
+
+// función para convertir número a letras (para usar si se requiere)
+function numALetras(numStr) {
+  const UNIDADES = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
+  const DECENAS = ["", "diez", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+  const CENTENAS = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
+
+  const especiales = {
+    10: "diez", 11: "once", 12: "doce", 13: "trece", 14: "catorce", 15: "quince",
+    20: "veinte"
+  };
+
+  function convertirGrupo(n) {
+    let output = "";
+    const centenas = Math.floor(n / 100);
+    const dec = Math.floor((n % 100) / 10);
+    const uni = n % 10;
+    if (n === 0) return "";
+    if (n === 100) return "cien";
+    if (centenas) output += CENTENAS[centenas] + " ";
+    if (n % 100 >= 10 && n % 100 <= 15) return output + especiales[n % 100];
+    if (n % 100 === 20) return output + "veinte";
+    if (dec >= 2) {
+      output += DECENAS[dec];
+      if (uni) output += " y " + UNIDADES[uni];
+    } else if (dec === 1) {
+      output += especiales[10 + uni];
+    } else if (uni) {
+      output += UNIDADES[uni];
+    }
+    return output.trim();
+  }
+
+  function seccion(valor, nombre) {
+    if (valor === 0) return "";
+    if (valor === 1 && nombre === "mil") return "mil ";
+    return convertirGrupo(valor) + " " + nombre + " ";
+  }
+
+  const [enteroStr, decimalStr] = numStr.split(".");
+  const entero = parseInt(enteroStr);
+  const centavos = parseInt(decimalStr || "0");
+  if (entero > 999999) return "Cantidad demasiado grande";
+  const miles = Math.floor(entero / 1000);
+  const cientos = entero % 1000;
+  let letras = "";
+  letras += seccion(miles, "mil");
+  letras += convertirGrupo(cientos);
+  letras = letras.trim();
+  if (!letras) letras = "cero";
+  letras = letras.charAt(0).toUpperCase() + letras.slice(1);
+  const centavoTexto = centavos ? ` con ${centavos}/100` : "";
+  return `${letras} quetzales${centavoTexto}`;
+}
 </script>
 </body>
 </html>
