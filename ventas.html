@@ -99,11 +99,11 @@
 </div>
 
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-                  <select id="ventaProducto" class="mdl-textfield__input">
-                    <option value="">Selecciona un producto</option>
-                  </select>
-                  <label class="mdl-textfield__label" for="ventaProducto"></label>
-                </div>
+  <input type="text" id="ventaProductoTexto" class="mdl-textfield__input" list="listaProductos">
+  <label class="mdl-textfield__label">Producto</label>
+  <datalist id="listaProductos"></datalist>
+</div>
+
  <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
                   <input type="number" id="ventaCantidad" class="mdl-textfield__input" min="1" />
                   <label class="mdl-textfield__label" for="ventaCantidad">Cantidad</label>
@@ -249,7 +249,8 @@ function registrarAccion(accion, modulo, detalles = {}) {
 }
 
   const clienteSelect  = document.getElementById("ventaCliente");
-  const productosSelect = document.getElementById("ventaProducto");
+const productoInput = document.getElementById("ventaProductoTexto");
+const listaProductos = document.getElementById("listaProductos");
   const cantidadInput  = document.getElementById("ventaCantidad");
   const precioInput    = document.getElementById("ventaPrecio");
   const tablaBody      = document.querySelector("#tablaCarrito tbody");
@@ -326,28 +327,32 @@ window.addEventListener("DOMContentLoaded", () => {
 
 
 // CARGAR PRODUCTOS
+
 get(ref(db, "productos")).then(snapshot => {
   const data = snapshot.val() || {};
+
+  listaProductos.innerHTML = "";
 
   Object.entries(data).forEach(([codigo, producto]) => {
     productosCache[codigo] = producto;
 
     const option = document.createElement("option");
-    option.value = codigo; // ✅ usar el código real
-    option.textContent = `${codigo} - ${producto.nombre}`;
-
-    productosSelect.appendChild(option);
+    option.value = `${codigo} - ${producto.nombre}`; // visible y escribible
+    listaProductos.appendChild(option);
   });
 });
-productosSelect.addEventListener("change", () => {
-  const codigo = productosSelect.value;
+productoInput.addEventListener("change", () => {
+  const texto = productoInput.value;
+
+  const codigo = texto.split(" - ")[0]; // extrae el código
   const producto = productosCache[codigo];
 
-  if (!producto) {
-    precioInput.value = "";
-    precioInput.disabled = true;
-    return;
-  }
+ if (!producto) {
+  precioInput.value = "";
+  precioInput.disabled = false; // 👈 permite escribir precio
+  return;
+}
+
 
   const costo = obtenerCosto(producto);
   precioInput.value = !isNaN(costo) ? costo : "";
@@ -385,31 +390,46 @@ function renderizarCarrito() {
 document.getElementById("btn-agregarCarrito").addEventListener("click", async (e) => {
   e.preventDefault();
 
-  const codigo = productosSelect.value;
+  const texto = productoInput.value;
+const codigo = texto.split(" - ")[0];
+
   const cantidad = parseInt(cantidadInput.value.trim());
-  const prod = productosCache[codigo];
+const prod = productosCache[codigo] || null;
 
-  if (!codigo || isNaN(cantidad) || cantidad <= 0) {
-    Swal.fire("Datos requeridos", "Selecciona producto y cantidad válida", "warning");
-    return;
+  const esVentaLibre = !prod;
+
+  let precioSugerido = null;
+  let precioTope = null;
+
+  if (!esVentaLibre) {
+    precioSugerido = obtenerPrecioSugerido(prod);
+    precioTope = obtenerPrecioTope(prod);
   }
 
-  if (!prod || cantidad > (prod.cantidad ?? 0)) {
-    Swal.fire("Sin stock", `Solo hay ${prod?.cantidad ?? 0} disponibles`, "error");
-    return;
-  }
+
+ if (
+  ( !esVentaLibre && !codigo ) ||
+  isNaN(cantidad) ||
+  cantidad <= 0
+) {
+  Swal.fire("Datos requeridos", "Selecciona producto y cantidad válida", "warning");
+  return;
+}
+
+
+  if (!esVentaLibre && cantidad > (prod.cantidad ?? 0)) {
+  Swal.fire("Sin stock", `Solo hay ${prod.cantidad} disponibles`, "error");
+  return;
+}
+
 
   const precioUnit = Number(precioInput.value);
   if (isNaN(precioUnit) || precioUnit <= 0) {
     Swal.fire("Precio inválido", "Ingresa un precio válido", "warning");
     return;
   }
-
-  const precioSugerido = obtenerPrecioSugerido(prod);
-  const precioTope = obtenerPrecioTope(prod);
-
-  // 🚨 VALIDACIÓN CON CONTRASEÑA
-  if (!isNaN(precioTope) && precioUnit < precioTope) {
+   // 🔐 VALIDACIÓN DE PRECIO BAJO (SOLO PRODUCTOS REALES)
+  if (!esVentaLibre && !isNaN(precioTope) && precioUnit < precioTope) {
     const autorizado = await confirmarPrecioBajo({
       precioUnit,
       precioSugerido,
@@ -420,7 +440,11 @@ document.getElementById("btn-agregarCarrito").addEventListener("click", async (e
   }
 
   // ✅ AGREGAR AL CARRITO
-  const existente = carrito.find(p => p.codigo === codigo && p.precio === precioUnit);
+const existente = carrito.find(p =>
+  (p.codigo === codigo || p.libre) &&
+  p.nombre === (esVentaLibre ? productoInput.value : prod.nombre) &&
+  p.precio === precioUnit
+);
 
   if (existente) {
     if ((existente.cantidad + cantidad) > (prod.cantidad ?? 0)) {
@@ -429,12 +453,14 @@ document.getElementById("btn-agregarCarrito").addEventListener("click", async (e
     }
     existente.cantidad += cantidad;
   } else {
-    carrito.push({
-      codigo,
-      nombre: prod.nombre,
-      precio: precioUnit,
-      cantidad
-    });
+   carrito.push({
+  codigo: esVentaLibre ? null : codigo,
+  nombre: esVentaLibre ? productoInput.value : prod.nombre,
+  precio: precioUnit,
+  cantidad,
+  libre: esVentaLibre
+});
+
   }
 
   cantidadInput.value = "";
@@ -458,11 +484,13 @@ document.getElementById("btn-agregarCarrito").addEventListener("click", async (e
       fecha: new Date().toISOString().split("T")[0],
       total: carrito.reduce((t, p) => t + (p.precio * p.cantidad), 0),
       productos: carrito.map(p => ({
-        codigo: p.codigo,
-        nombre: p.nombre,
-        cantidad: p.cantidad,
-        precio: p.precio
-      }))
+  codigo: p.codigo || null,
+  nombre: p.nombre,
+  cantidad: p.cantidad,
+  precio: p.precio,
+  libre: p.libre || false
+}))
+
     };
     get(ref(db, "ventas")).then(snapshot => {
       const data = snapshot.val() || {};
@@ -484,16 +512,19 @@ document.getElementById("btn-agregarCarrito").addEventListener("click", async (e
         productos: venta.productos.map(p => `${p.nombre} (${p.cantidad})`)
       });
       for (const p of venta.productos) {
-        const prodRef = ref(db, "productos/" + p.codigo);
-        const snap = await get(prodRef);
-        const actual = snap.val();
-        const nuevoStock = (actual?.cantidad || 0) - p.cantidad;
-        await update(prodRef, { cantidad: nuevoStock });
-      }
+  if (p.libre) continue; // 👈 venta libre no toca inventario
+
+  const prodRef = ref(db, "productos/" + p.codigo);
+  const snap = await get(prodRef);
+  const actual = snap.val();
+  const nuevoStock = (actual?.cantidad || 0) - p.cantidad;
+  await update(prodRef, { cantidad: nuevoStock });
+}
+
       carrito = [];
       renderizarCarrito();
       clienteSelect.selectedIndex = 0;
-      productosSelect.selectedIndex = 0;
+      productoInput.value = "";
       cantidadInput.value = "";
       precioInput.value = "";
       precioInput.disabled = true;
@@ -553,14 +584,16 @@ const nombreCliente = c
     idVentaEditando = id;
     carrito = [];
     renderizarCarrito();
-    venta.productos.forEach(async p => {
-      const productoRef = ref(db, "productos/" + p.codigo);
-      const snap = await get(productoRef);
-      const actual = snap.val();
-      if (actual) {
-        const nuevoStock = (actual.cantidad || 0) + p.cantidad;
-        await update(productoRef, { cantidad: nuevoStock });
-      }
+   venta.productos.forEach(async p => {
+  if (p.libre) return; // 👈 CLAVE
+
+  const productoRef = ref(db, "productos/" + p.codigo);
+  const snap = await get(productoRef);
+  const actual = snap.val();
+  if (actual) {
+    const nuevoStock = (actual.cantidad || 0) + p.cantidad;
+    await update(productoRef, { cantidad: nuevoStock });
+  }
       carrito.push({ ...p });
     });
     clienteSelect.value = venta.cliente;
@@ -588,13 +621,16 @@ const nombreCliente = c
 
     try {
       await Promise.all(
-        (venta.productos || []).map(async (p) => {
-          const prodRef = ref(db, "productos/" + p.codigo);
-          const snap = await get(prodRef);
-          const actual = snap.val() || {};
-          const nuevo = (actual.cantidad || 0) + (p.cantidad || 0);
-          return update(prodRef, { cantidad: nuevo });
-        })
+       (venta.productos || []).map(async (p) => {
+  if (p.libre) return; // 👈 CLAVE
+
+  const prodRef = ref(db, "productos/" + p.codigo);
+  const snap = await get(prodRef);
+  const actual = snap.val() || {};
+  const nuevo = (actual.cantidad || 0) + (p.cantidad || 0);
+  return update(prodRef, { cantidad: nuevo });
+})
+
       );
       await remove(ref(db, "ventas/" + id));
       registrarAccion("eliminó una venta", "ventas", {
@@ -622,31 +658,32 @@ const nombreCliente = c
     const fecha = venta.fecha;
     const totalLetras = numALetras(venta.total.toFixed(2));
 
-    async function imprimirMitad(yOffset, copiaTexto) {
-  const logo = new Image();
-  logo.src = "assets/img/logo.png";
+const logo = new Image();
+logo.src = "assets/img/logo.png";
+await new Promise(r => logo.onload = r);
 
-  await new Promise(resolve => {
-    logo.onload = resolve;
-  });
+
+    async function imprimirMitad(yOffset, copiaTexto) {
+
+
+  const LIMITE = yOffset + 135;
 
   doc.addImage(logo, "PNG", 15, yOffset, 25, 25);
 
   doc.setFontSize(14);
   doc.text("TR ACCESORIOS", 43, yOffset + 10);
-
   doc.setFontSize(10);
-  doc.text("NOTA DE ENTREGA", 43, yOffset + 16);
+  doc.text("FACTURA", 43, yOffset + 16);
 
   doc.setFontSize(9);
   doc.text(`Código venta: ${codigoVenta}`, 150, yOffset + 12);
   doc.text(`Fecha: ${fecha}`, 150, yOffset + 16);
 
   doc.setFontSize(12);
-  doc.text(copiaTexto, 175, yOffset + 8, { align: "right" });
+  doc.text(copiaTexto, 195, yOffset + 10, { align: "right" });
 
-  const rows = (venta.productos || []).map(p => [
-    p.codigo || "-",
+  const rows = venta.productos.map(p => [
+    p.codigo,
     p.nombre,
     p.cantidad,
     q(p.precio),
@@ -654,34 +691,48 @@ const nombreCliente = c
   ]);
 
   doc.autoTable({
-    head: [["Código", "Producto", "Cant.", "Precio Unitario", "Subtotal"]],
+    head: [["Código", "Producto", "Cant.", "Precio", "Subtotal"]],
     body: rows,
-    startY: yOffset + 50,
+    startY: yOffset + 45,
     theme: "grid",
     styles: { fontSize: 9 },
     margin: { left: 15, right: 15 }
   });
 
-  const tablaY = doc.lastAutoTable.finalY + 5;
+  const yFinal = doc.lastAutoTable.finalY;
+
+  if (yFinal > LIMITE - 30) {
+    return false; // ❌ no cabe
+  }
+
   doc.setFontSize(10);
-  doc.text("Total: " + q(venta.total), 140, tablaY);
+  doc.text("Total: " + q(venta.total), 150, yFinal + 8);
 
-  doc.text("Total en letras:", 15, tablaY + 6);
+  doc.text("Total en letras:", 15, yFinal + 14);
   doc.setFontSize(9);
-  doc.text(totalLetras, 15, tablaY + 12);
+  doc.text(totalLetras, 15, yFinal + 20);
 
-  doc.line(15, tablaY + 25, 80, tablaY + 25);
-  doc.text("Firma y sello", 25, tablaY + 30);
+  doc.line(15, LIMITE, 195, LIMITE);
+  doc.text("Firma y sello", 20, LIMITE + 6);
+
+  return true;
 }
 
+const ok = await imprimirMitad(10, "ORIGINAL");
 
-    imprimirMitad(10, "ORIGINAL");
-    doc.setLineWidth(0.2);
-    doc.line(10, 143, 200, 143);
-    doc.text("Corte de hoja ✂", 105, 145, { align: "center" });
-    imprimirMitad(150, "COPIA");
-    doc.save(`nota_${codigoVenta}.pdf`);
-  };
+if (!ok) {
+  doc.addPage();
+  await imprimirMitad(10, "ORIGINAL");
+  doc.addPage();
+  await imprimirMitad(10, "COPIA");
+} else {
+  await imprimirMitad(145, "COPIA");
+}
+
+doc.save(`factura_${codigoVenta}.pdf`);
+};
+
+
   document.getElementById("btn-pdf-ventas").addEventListener("click", () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
