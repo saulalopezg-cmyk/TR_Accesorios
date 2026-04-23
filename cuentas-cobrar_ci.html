@@ -63,7 +63,9 @@
           <li><a href="providers_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-truck"></i></div><div class="navLateral-body-cr hide-on-tablet">Proveedores</div></a></li>
           <li><a href="ventas_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Ventas</div></a></li>
           <li><a href="cuentas-cobrar_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-balance-wallet"></i></div><div class="navLateral-body-cr hide-on-tablet">Cuentas por cobrar</div></a></li>
-           </ul>
+        		<li><a href="dashboard_ci.html" class="full-width active"><div class="navLateral-body-cl"><i class="zmdi zmdi-chart"></i></div><div class="navLateral-body-cr hide-on-tablet">Dashboard</div></a></li>
+  
+        </ul>
       </nav>
     </div>
   </section>
@@ -133,6 +135,7 @@
           </div>
           <ul class="mdl-list" id="listaCuentas">
             <!-- Cuentas cargadas aquí dinámicamente -->
+
           </ul>
         </div>
       </div>
@@ -293,15 +296,17 @@ function renderCuentas() {
     
       const cli = snap.val() || {};
     c.clienteData = cli;
-      const nombre = `${cli.nombre || ""} ${cli.apellido || ""}`.trim();
+      const nombre = c.cliente
+  ? `${cli.nombre || ""} ${cli.apellido || ""}`.trim()
+  : (c.clienteLibre || "Cliente libre");
       if (!nombre.toLowerCase().includes(texto)) return;
          c.clienteData = cli; // Guardamos el nombre del cliente en la cuenta
       const li = document.createElement("li");
       li.className = "mdl-list__item";
       li.innerHTML = `
         <span class="mdl-list__item-primary-content">
-          <strong>${nombre}</strong> – Venta_ci ${c.codigoVenta_ci}
-          <br>Fecha: ${c.fechaVenta_ci} – Saldo: Q${c.saldo.toFixed(2)} (${c.estado})
+          <strong>${nombre}</strong> – Venta ${c.codigoVenta}
+          <br>Fecha: ${c.fechaVenta} – Saldo: Q${c.saldo.toFixed(2)} (${c.estado})
         </span>
         <span class="mdl-list__item-secondary-action">
           <button onclick="abonar('${id}')">💰</button>
@@ -318,27 +323,90 @@ filtroEstado.addEventListener("change", renderCuentas);
 
 window.abonar = function (id) {
   const cuenta = cuentas[id];
+
   Swal.fire({
     title: "Registrar abono",
-    input: "number",
-    inputLabel: `Saldo actual: Q${cuenta.saldo.toFixed(2)}`,
-    showCancelButton: true
-  }).then(res => {
-    const monto = parseFloat(res.value);
-    if (isNaN(monto) || monto <= 0 || monto > cuenta.saldo) return;
+    html: `
+      <select id="tipoPago" class="swal2-input">
+        <option value="efectivo">Efectivo</option>
+        <option value="transferencia">Transferencia</option>
+      </select>
+
+      <input type="number" id="monto" class="swal2-input" placeholder="Monto">
+
+      <div id="datosTransferencia" style="display:none;">
+        <input type="text" id="banco" class="swal2-input" placeholder="Banco">
+        <input type="text" id="comprobante" class="swal2-input" placeholder="No. comprobante">
+        <input type="file" id="voucher" class="swal2-file">
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: "Guardar",
+    didOpen: () => {
+      const tipo = document.getElementById("tipoPago");
+      const div = document.getElementById("datosTransferencia");
+
+      tipo.addEventListener("change", () => {
+        div.style.display = tipo.value === "transferencia" ? "block" : "none";
+      });
+    },
+    preConfirm: async () => {
+      const tipo = document.getElementById("tipoPago").value;
+      const monto = parseFloat(document.getElementById("monto").value);
+
+      if (isNaN(monto) || monto <= 0 || monto > cuenta.saldo) {
+        Swal.showValidationMessage("Monto inválido");
+        return false;
+      }
+
+      let banco = null;
+      let comprobante = null;
+      let voucherBase64 = null;
+
+      if (tipo === "transferencia") {
+        banco = document.getElementById("banco").value;
+        comprobante = document.getElementById("comprobante").value;
+        const file = document.getElementById("voucher").files[0];
+
+        if (!banco || !comprobante || !file) {
+          Swal.showValidationMessage("Completa datos de transferencia");
+          return false;
+        }
+
+        voucherBase64 = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      return { tipo, monto, banco, comprobante, voucherBase64 };
+    }
+  }).then(result => {
+
+    if (!result.isConfirmed) return;
+
+    const { tipo, monto, banco, comprobante, voucherBase64 } = result.value;
 
     cuenta.abonado += monto;
     cuenta.saldo -= monto;
+
     cuenta.movimientos.push({
       fecha: new Date().toISOString().split("T")[0],
       tipo: "abono",
-      monto
+      metodo: tipo,
+      monto,
+      banco: banco || null,
+      comprobante: comprobante || null,
+      voucher: voucherBase64 || null
     });
 
     cuenta.estado = cuenta.saldo <= 0 ? "cancelado" : "pendiente";
+
     set(ref(db, "cuentasPorCobrar/" + id), cuenta).then(() => {
       Swal.fire("Abono registrado", "", "success");
     });
+
   });
 };
 

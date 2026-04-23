@@ -18,7 +18,6 @@
   <script src="js/main.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
-
   <script type="module">
     let modoEdicion = false;
     let idProductoEditado = null;
@@ -40,7 +39,6 @@
     import {
       getStorage, ref as sRef, uploadBytes, getDownloadURL
     } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-storage.js";
-
     const firebaseConfig = {
       apiKey: "AIzaSyCE9UY3P3oEFZ_cgX7d5Ox0lFZiL_9Uszs",
       authDomain: "accesoriostr-7f01e.firebaseapp.com",
@@ -55,7 +53,6 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const storage = getStorage(app);
-
     const filtroProducto = document.getElementById("filtroProducto");
 
     function registrarAccion(accion, modulo, detalles = {}) {
@@ -84,7 +81,6 @@
         window.location.href = "index.html";
       });
     };
-
     // Registrar producto
     document.getElementById("btn-addProduct").addEventListener("click", async (e) => {
       e.preventDefault();
@@ -96,6 +92,11 @@
       const proveedor = document.getElementById("productSupplier").value.trim();
       const file = document.getElementById("productImage").files[0];
 
+if (file && !file.type.startsWith("image/")) {
+  Swal.fire("Archivo no válido", "Debes seleccionar una imagen", "warning");
+  return;
+}
+
       if (!codigo || !nombre || isNaN(cantidad) || isNaN(precioSugerido) || isNaN(precioTope)) {
         Swal.fire("Campos requeridos", "Código, nombre, cantidad y precios son obligatorios", "warning");
         return;
@@ -103,8 +104,13 @@
 
       let imageUrl = "";
       if (file) {
-        const storageRef = sRef(storage, "productos/" + codigo + "_" + Date.now());
-        await uploadBytes(storageRef, file);
+        const extension = file.name.split('.').pop();
+const nombreArchivo = `${codigo}_${Date.now()}.${extension}`;
+const storageRef = sRef(storage, "productos/" + nombreArchivo);
+
+await uploadBytes(storageRef, file, {
+  contentType: file.type
+});
         imageUrl = await getDownloadURL(storageRef);
       }
 
@@ -282,16 +288,25 @@
     }
 
     // preview imagen subida
+    
     document.getElementById("productImage").addEventListener("change", (e) => {
-      const preview = document.getElementById("previewImage");
-      const file = e.target.files[0];
-      if (file) {
-        preview.src = URL.createObjectURL(file);
-        preview.style.display = "block";
-      } else {
-        preview.style.display = "none";
-      }
-    });
+  const preview = document.getElementById("previewImage");
+  const file = e.target.files[0];
+
+  if (file) {
+    const reader = new FileReader();
+
+    reader.onload = function (event) {
+      preview.src = event.target.result;
+      preview.style.display = "block";
+    };
+
+    reader.readAsDataURL(file);
+  } else {
+    preview.src = "";
+    preview.style.display = "none";
+  }
+});
 
     // generar PDF con imágenes
     document.getElementById("btn-pdf").addEventListener("click", async () => {
@@ -365,8 +380,15 @@
               });
               // si la imagen cargó correctamente, la agregamos (si no, se salta)
               if (img.width && img.height) {
-                doc.addImage(img, "JPEG", 14, y, 20, 20);
-                doc.setFontSize(10);
+let formato = "JPEG";
+
+if (prod.imagen.toLowerCase().includes("png")) {
+  formato = "PNG";
+} else if (prod.imagen.toLowerCase().includes("webp")) {
+  formato = "WEBP";
+}
+
+doc.addImage(img, formato, 14, y, 20, 20);                doc.setFontSize(10);
                 const nombreTexto = `${prod.nombre} (${prod.codigo})`;
                 // ajuste de texto si es muy largo
                 doc.text(nombreTexto, 38, y + 10);
@@ -463,6 +485,7 @@
           <li><a href="sales.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-basket"></i></div><div class="navLateral-body-cr hide-on-tablet">Compras</div></a></li>
           <li><a href="providers.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-truck"></i></div><div class="navLateral-body-cr hide-on-tablet">Proveedores</div></a></li>
           <li><a href="ventas.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Ventas</div></a></li>
+          <li><a href="dashboard.html" class="full-width active"><div class="navLateral-body-cl"><i class="zmdi zmdi-chart"></i></div><div class="navLateral-body-cr hide-on-tablet">Dashboard</div></a></li>
           <li><a href="cuentas-cobrar.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-balance-wallet"></i></div><div class="navLateral-body-cr hide-on-tablet">Cuentas por cobrar</div></a></li>
         </ul>
       </nav>
@@ -508,7 +531,12 @@
                     <label class="mdl-textfield__label" for="productSupplier">Proveedor</label>
                   </div>
                   <div class="mdl-textfield mdl-js-textfield mdl-textfield--file">
-                    <input class="mdl-textfield__input" type="file" id="productImage" accept="image/*" />
+                    <input 
+  class="mdl-textfield__input" 
+  type="file" 
+  id="productImage" 
+  accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.svg"
+/>
                     <label class="mdl-textfield__label" for="productImage">Imagen del producto</label>
                   </div>
                   <img id="previewImage" src="" style="max-height: 100px; margin-top: 10px; display: none;" />

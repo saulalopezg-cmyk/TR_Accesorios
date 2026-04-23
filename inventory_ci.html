@@ -33,7 +33,11 @@
       ref,
       set,
       get,
-      onValue
+      onValue,
+      push
+      } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+    import {
+       getStorage, ref as sRef, uploadBytes, getDownloadURL
     } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
     const firebaseConfig = {
   apiKey: "AIzaSyCE9UY3P3oEFZ_cgX7d5Ox0lFZiL_9Uszs",
@@ -44,15 +48,13 @@
   messagingSenderId: "927871540022",
   appId: "1:927871540022:web:eb4a9a446cc0a6530a7197"
 };
-    import { push } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
+const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const storage = getStorage(app);
+    const filtroProducto = document.getElementById("filtroProducto");
 
-    import {
-  getStorage, ref as sRef, uploadBytes, getDownloadURL
-} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-storage.js";
- const app = initializeApp(firebaseConfig);
-const storage = getStorage(app);
-const filtroProducto = document.getElementById("filtroProducto");
     function registrarAccion(accion, modulo, detalles = {}) {
   const user = auth.currentUser;
   if (!user) return;
@@ -67,14 +69,13 @@ const filtroProducto = document.getElementById("filtroProducto");
   push(ref(db, "registros_ci"), registros_ci);
 }
    
-    const auth = getAuth(app);
-    const db = getDatabase(app);
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         Swal.fire("Sesión cerrada", "Debes iniciar sesión para acceder", "info")
           .then(() => window.location.href = "index.html");
       }
     });
+
     window.logout = function () {
       signOut(auth).then(() => {
         window.location.href = "index.html";
@@ -82,57 +83,66 @@ const filtroProducto = document.getElementById("filtroProducto");
     };
     // Registrar producto
     document.getElementById("btn-addProduct").addEventListener("click", async (e) => {
-  e.preventDefault();
-  const codigo = document.getElementById("productCode").value.trim();
-  const nombre = document.getElementById("productName").value.trim();
-  const cantidad = parseInt(document.getElementById("productQty").value.trim());
-  const precioSugerido = parseFloat(document.getElementById("productSuggestedPrice").value.trim());
-  const precioTope = parseFloat(document.getElementById("productMaxPrice").value.trim());
-  const proveedor = document.getElementById("productSupplier").value.trim();
-  const file = document.getElementById("productImage").files[0];
+      e.preventDefault();
+      const codigo = document.getElementById("productCode").value.trim();
+      const nombre = document.getElementById("productName").value.trim();
+      const cantidad = parseInt(document.getElementById("productQty").value.trim());
+      const precioSugerido = parseFloat(document.getElementById("productSuggestedPrice").value.trim());
+      const precioTope = parseFloat(document.getElementById("productMaxPrice").value.trim());
+      const proveedor = document.getElementById("productSupplier").value.trim();
+      const file = document.getElementById("productImage").files[0];
 
-  if (!codigo || !nombre || isNaN(cantidad) || isNaN(precioSugerido) || isNaN(precioTope)) {
-  Swal.fire("Campos requeridos", "Código, nombre, cantidad y precios son obligatorios", "warning");
+if (file && !file.type.startsWith("image/")) {
+  Swal.fire("Archivo no válido", "Debes seleccionar una imagen", "warning");
   return;
 }
 
-  let imageUrl = "";
-  if (file) {
-    const storageRef = sRef(storage, "productos_ci/" + codigo + "_" + Date.now());
-    await uploadBytes(storageRef, file);
-    imageUrl = await getDownloadURL(storageRef);
-  }
+      if (!codigo || !nombre || isNaN(cantidad) || isNaN(precioSugerido) || isNaN(precioTope)) {
+        Swal.fire("Campos requeridos", "Código, nombre, cantidad y precios son obligatorios", "warning");
+        return;
+      }
 
-  let producto_ci = {
-    codigo,
-    nombre,
-    cantidad,
-    precioSugerido,
-    precioTope,
-    proveedor,
-  };
+      let imageUrl = "";
+      if (file) {
+        const extension = file.name.split('.').pop();
+const nombreArchivo = `${codigo}_${Date.now()}.${extension}`;
+const storageRef = sRef(storage, "productos_ci/" + nombreArchivo);
 
- if (file) {
-  producto.imagen = imageUrl;
-} else if (modoEdicion) {
-  const snap = await get(ref(db, "productos_ci/" + idProductoEditado));
-  producto_ci.imagen = snap.val()?.imagen || "";
-} else {
-  producto_ci.imagen = ""; // asigna imagen por defecto si no hay imagen y no es edición
-}
-
-  const idFinal = modoEdicion ? idProductoEditado : codigo;
-  await set(ref(db, "productos_ci/" + idFinal), producto_ci);
-
-  registrarAccion(modoEdicion ? "editó un producto" : "registró un producto", "inventario", producto);
-
-  Swal.fire("Éxito", modoEdicion ? "Producto actualizado" : "Producto guardado", "success");
-  document.getElementById("form-product").reset();
-  document.getElementById("previewImage").style.display = "none";
-  modoEdicion = false;
-  idProductoEditado = null;
+await uploadBytes(storageRef, file, {
+  contentType: file.type
 });
+        imageUrl = await getDownloadURL(storageRef);
+      }
 
+      let producto = {
+        codigo,
+        nombre,
+        cantidad,
+        precioSugerido,
+        precioTope,
+        proveedor,
+      };
+
+      if (file) {
+        producto.imagen = imageUrl;
+      } else if (modoEdicion) {
+        const snap = await get(ref(db, "productos_ci/" + idProductoEditado));
+        producto.imagen = snap.val()?.imagen || "";
+      } else {
+        producto.imagen = "";
+      }
+
+      const idFinal = modoEdicion ? idProductoEditado : codigo;
+      await set(ref(db, "productos_ci/" + idFinal), producto);
+
+      registrarAccion(modoEdicion ? "editó un producto" : "registró un producto", "inventario", producto);
+
+      Swal.fire("Éxito", modoEdicion ? "Producto actualizado" : "Producto guardado", "success");
+      document.getElementById("form-product").reset();
+      document.getElementById("previewImage").style.display = "none";
+      modoEdicion = false;
+      idProductoEditado = null;
+    });
   
     // Mostrar productos
     const lista = document.getElementById("product-list");
@@ -143,196 +153,293 @@ onValue(ref(db, "productos_ci"), (snapshot) => {
   renderProductos();
 });
 
-filtroProducto.addEventListener("input", renderProductos);
+if (filtroProducto) {
+      filtroProducto.addEventListener("input", renderProductos);
+    }
 
 function renderProductos() {
-  const texto = filtroProducto.value.toLowerCase();
-  lista.innerHTML = "";
+      const texto = (filtroProducto?.value || "").toLowerCase();
+      lista.innerHTML = "";
 
-  Object.entries(productosData).forEach(([id, prod]) => {
-    const nombre = prod.nombre?.toLowerCase() || "";
-    const codigo = prod.codigo?.toLowerCase() || "";
-    if (texto && !nombre.includes(texto) && !codigo.includes(texto)) return;
+      Object.entries(productosData).forEach(([id, prod]) => {
+        const nombre = prod.nombre?.toLowerCase() || "";
+        const codigo = prod.codigo?.toLowerCase() || "";
+        if (texto && !nombre.includes(texto) && !codigo.includes(texto)) return;
 
-    const item = document.createElement("div");
-    item.className = "mdl-list__item mdl-list__item--three-line";
-    item.style.position = "relative";
+        const item = document.createElement("div");
+        item.className = "mdl-list__item mdl-list__item--three-line";
+        item.style.position = "relative";
 
-    item.innerHTML = `
-      <span class="mdl-list__item-primary-content">
-        <img src="${prod.imagen || 'assets/img/default.png'}" alt="${prod.nombre}" width="40" style="vertical-align: middle; margin-right: 8px;" />
-        <strong>${prod.codigo}</strong>: ${prod.nombre}<br>
-        <span class="mdl-list__item-sub-title">
-  Stock: ${prod.cantidad} | Sugerido: Q${(prod.precioSugerido || 0).toFixed(2)} | Tope: Q${(prod.precioTope || 0).toFixed(2)}
-</span>
-      </span>
-      <span class="mdl-list__item-secondary-action">
-        <button class="mdl-button mdl-js-button mdl-button--icon menu-btn" data-id="${id}">
-          <i class="zmdi zmdi-more-vert"></i>
-        </button>
-        <ul class="options-menu" id="menu-${id}" style="
-          display: none;
-          position: absolute;
-          top: 5px;
-          right: 0;
-          background: #fff;
-          border: 1px solid #ccc;
-          border-radius: 3px;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-          list-style: none;
-          padding: 5px 0;
-          z-index: 9999;
-          min-width: 120px;
-        ">
-          <li style="padding: 5px 15px;"><a href="#" class="edit-product" data-id="${id}">Editar</a></li>
-          <li style="padding: 5px 15px;"><a href="#" class="delete-product" data-id="${id}">Eliminar</a></li>
-        </ul>
-      </span>
-    `;
+        const imagenHTML = prod.imagen
+          ? `<img src="${prod.imagen}" alt="${prod.nombre}" style="width:50px;height:50px;border-radius:4px;margin-right:10px;vertical-align:middle;" />`
+          : `<img src="assets/img/default.png" alt="Sin imagen" style="width:50px;height:50px;border-radius:4px;margin-right:10px;vertical-align:middle;" />`;
 
-    // Mostrar/ocultar menú contextual
-    const btnMenu = item.querySelector(".menu-btn");
-    const menu = item.querySelector(`#menu-${id}`);
-    btnMenu.addEventListener("click", (e) => {
-      e.preventDefault();
-      document.querySelectorAll(".options-menu").forEach(m => {
-        if (m !== menu) m.style.display = "none";
-      });
-      menu.style.display = menu.style.display === "block" ? "none" : "block";
-    });
+        item.innerHTML = `
+          <span class="mdl-list__item-primary-content">
+            ${imagenHTML}
+            <strong>${prod.codigo}</strong>: ${prod.nombre}<br>
+            <span class="mdl-list__item-sub-title">
+              Stock: ${prod.cantidad} | Sugerido: Q${(prod.precioSugerido || 0).toFixed(2)} | Tope: Q${(prod.precioTope || 0).toFixed(2)}
+            </span>
+          </span>
+          <span class="mdl-list__item-secondary-action">
+            <button class="mdl-button mdl-js-button mdl-button--icon menu-btn" data-id="${id}">
+              <i class="zmdi zmdi-more-vert"></i>
+            </button>
+            <ul class="options-menu" id="menu-${id}" style="
+              display: none;
+              position: absolute;
+              top: 5px;
+              right: 0;
+              background: #fff;
+              border: 1px solid #ccc;
+              border-radius: 3px;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+              list-style: none;
+              padding: 5px 0;
+              z-index: 9999;
+              min-width: 120px;
+            ">
+              <li style="padding: 5px 15px;"><a href="#" class="edit-product" data-id="${id}">Editar</a></li>
+              <li style="padding: 5px 15px;"><a href="#" class="delete-product" data-id="${id}">Eliminar</a></li>
+            </ul>
+          </span>
+        `;
 
-    // Ocultar el menú al hacer clic fuera
-    document.addEventListener("click", (e) => {
-      if (!item.contains(e.target)) {
-        menu.style.display = "none";
-      }
-    });
-
-    // Eliminar producto
-    item.querySelector(".delete-product").addEventListener("click", (e) => {
-      e.preventDefault();
-      Swal.fire({
-        title: "¿Eliminar producto?",
-        text: "Esta acción no se puede deshacer",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonText: "Sí, eliminar",
-        cancelButtonText: "Cancelar"
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const prod = productosData[id];
-          set(ref(db, "productos_ci/" + id), null);
-          Swal.fire("Eliminado", "Producto eliminado correctamente", "success");
-          registrarAccion("eliminó un producto", "inventario", {
-            codigo: prod.codigo,
-            nombre: prod.nombre,
-            cantidad: prod.cantidad,
-            precio: prod.precio
+        // menu
+        const btnMenu = item.querySelector(".menu-btn");
+        const menu = item.querySelector(`#menu-${id}`);
+        btnMenu.addEventListener("click", (e) => {
+          e.preventDefault();
+          document.querySelectorAll(".options-menu").forEach(m => {
+            if (m !== menu) m.style.display = "none";
           });
-        }
+          menu.style.display = menu.style.display === "block" ? "none" : "block";
+        });
+
+        // click fuera cierra menus
+        document.addEventListener("click", (e) => {
+          if (!item.contains(e.target)) {
+            menu.style.display = "none";
+          }
+        });
+
+        // eliminar producto
+        item.querySelector(".delete-product").addEventListener("click", (e) => {
+          e.preventDefault();
+          Swal.fire({
+            title: "¿Eliminar producto?",
+            text: "Esta acción no se puede deshacer",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, eliminar",
+            cancelButtonText: "Cancelar"
+          }).then((result) => {
+            if (result.isConfirmed) {
+              const prod = productosData[id];
+              set(ref(db, "productos_ci/" + id), null);
+              Swal.fire("Eliminado", "Producto eliminado correctamente", "success");
+              registrarAccion("eliminó un producto", "inventario", {
+                codigo: prod.codigo,
+                nombre: prod.nombre,
+                cantidad: prod.cantidad,
+                precios: { sugerido: prod.precioSugerido, tope: prod.precioTope }
+              });
+            }
+          });
+        });
+
+        // editar producto (rellena formulario)
+        item.querySelector(".edit-product").addEventListener("click", async (e) => {
+          e.preventDefault();
+          const prod = productosData[id];
+          if (!prod) return;
+
+          const map = [
+            ["productCode", prod.codigo || ""],
+            ["productName", prod.nombre || ""],
+            ["productQty", prod.cantidad || ""],
+            ["productSuggestedPrice", prod.precioSugerido || ""],
+            ["productMaxPrice", prod.precioTope || ""],
+            ["productSupplier", prod.proveedor || ""]
+          ];
+
+          map.forEach(([inputId, value]) => {
+            const input = document.getElementById(inputId);
+            if (input) {
+              input.value = value;
+              input.parentElement?.classList?.add("is-dirty");
+            }
+          });
+
+          const preview = document.getElementById("previewImage");
+          preview.src = prod.imagen || "assets/img/default.png";
+          preview.style.display = "block";
+
+          modoEdicion = true;
+          idProductoEditado = id;
+
+          const tabLink = document.querySelector('[href="#tabNewProduct"]');
+          if (tabLink) tabLink.click();
+        });
+
+        lista.appendChild(item);
       });
-    });
+    }
 
-    // Editar producto
-    item.querySelector(".edit-product").addEventListener("click", (e) => {
-      e.preventDefault();
-      const prod = productosData[id];
-      if (!prod) return;
-
-      ["productCode", "productName", "productQty", "productPrice", "productSupplier"].forEach(id => {
-  const input = document.getElementById(id);
-  const valor =
-    id === "productQty" ? prod.cantidad :
-    id === "productPrice" ? prod.precio :
-    prod[id === "productName" ? "nombre" :
-         id === "productSupplier" ? "proveedor" : "codigo"];
-  input.value = valor || "";
-  input.parentElement.classList.add("is-dirty");
-});
-
-      const preview = document.getElementById("previewImage");
-      preview.src = prod.imagen || "assets/img/default.png";
-      preview.style.display = "block";
-
-      modoEdicion = true;
-      idProductoEditado = id;
-
-      const tabLink = document.querySelector('[href="#tabNewProduct"]');
-      if (tabLink) tabLink.click();
-    });
-
-    lista.appendChild(item);
-  });
-}
-  document.getElementById("productImage").addEventListener("change", (e) => {
+      // preview imagen subida
+    
+    document.getElementById("productImage").addEventListener("change", (e) => {
   const preview = document.getElementById("previewImage");
   const file = e.target.files[0];
+
   if (file) {
-    preview.src = URL.createObjectURL(file);
-    preview.style.display = "block";
+    const reader = new FileReader();
+
+    reader.onload = function (event) {
+      preview.src = event.target.result;
+      preview.style.display = "block";
+    };
+
+    reader.readAsDataURL(file);
   } else {
+    preview.src = "";
     preview.style.display = "none";
   }
 });
-		
-document.getElementById("btn-pdf").addEventListener("click", () => {
-  const doc = new window.jspdf.jsPDF();
-  const logoUrl = "assets/img/logo.jpg";
+  
+        // generar PDF con imágenes
+    document.getElementById("btn-pdf").addEventListener("click", async () => {
+      const doc = new window.jspdf.jsPDF();
+      const logoUrl = "assets/img/logo.jpg";
 
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.src = logoUrl;
+      const logo = new Image();
+      logo.crossOrigin = "anonymous";
+      logo.src = logoUrl;
 
-  img.onload = () => {
-    doc.addImage(img, "JPEG", 15, 10, 20, 20);
-    const fecha = new Date().toLocaleDateString();
-    doc.setFontSize(16);
-    doc.text("INVENTARIO – TR ACCESORIOS CENTRO DE INSTALACION", 40, 20);
-    doc.setFontSize(10);
-    doc.text("Fecha: " + fecha, 40, 27);
+      logo.onload = async () => {
+        // Encabezado
+        doc.addImage(logo, "JPEG", 15, 10, 20, 20);
+        const fecha = new Date().toLocaleDateString();
+        doc.setFontSize(16);
+        doc.text("INVENTARIO CI– TR ACCESORIOS", 40, 20);
+        doc.setFontSize(10);
+        doc.text("Fecha: " + fecha, 40, 27);
 
-    get(ref(db, "productos_ci")).then(async (snapshot) => {
-      const productos = snapshot.val();
-      if (!productos) {
-        Swal.fire("Nada para imprimir", "No hay productos en inventario", "info");
-        return;
-      }
-
-      const rows = [];
-      const images = [];
-
-      for (const [id, prod] of Object.entries(productos)) {
-       rows.push([
-  prod.codigo || id,
-  prod.nombre || "",
-  prod.cantidad || 0,
-  "Q" + (prod.precioSugerido || 0).toFixed(2),
-  "Q" + (prod.precioTope || 0).toFixed(2),
-  prod.proveedor || ""
-]);
-
-        const image = new Image();
-        image.crossOrigin = "anonymous";
-        image.src = prod.imagen || "assets/img/default.png";
-        images.push(image);
-      }
-
-      doc.autoTable({
-        startY: 35,
-       head: [[ "Código", "Nombre", "Cantidad", "Sugerido", "Tope", "Proveedor"]],
-        body: rows,
-        theme: "striped",
-        headStyles: { fillColor: [41, 128, 185] },
-        styles: { fontSize: 9, cellPadding: 3 },
-        columnStyles: {
-          0: { cellWidth: 16 }, // ancho para miniatura
+        // Cuerpo de tabla
+        const snapshot = await get(ref(db, "productos_ci"));
+        const productos = snapshot.val();
+        if (!productos) {
+          Swal.fire("Nada para imprimir", "No hay productos en inventario", "info");
+          return;
         }
-      });
 
-      doc.save("inventario_tr_accesorios_ci.pdf");
+        const rows = [];
+        for (const [id, prod] of Object.entries(productos)) {
+          rows.push([
+            prod.codigo || id,
+            prod.nombre || "",
+            prod.cantidad || 0,
+            "Q" + (prod.precioSugerido || 0).toFixed(2),
+            "Q" + (prod.precioTope || 0).toFixed(2),
+            prod.proveedor || ""
+          ]);
+        }
+
+        doc.autoTable({
+          startY: 35,
+          head: [["Código", "Nombre", "Cantidad", "Sugerido", "Tope", "Proveedor"]],
+          body: rows,
+          theme: "striped",
+          headStyles: { fillColor: [41, 128, 185] },
+          styles: { fontSize: 9, cellPadding: 3 },
+          columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 60 }
+          }
+        });
+
+        // Inserción de miniaturas
+        let y = doc.lastAutoTable.finalY + 8;
+        doc.setFontSize(12);
+        doc.text("Vista previa de productos:", 14, y);
+        y += 6;
+
+        for (const [id, prod] of Object.entries(productos)) {
+          if (prod.imagen) {
+            try {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.src = prod.imagen;
+              await new Promise((res, rej) => {
+                img.onload = res;
+                img.onerror = () => {
+                  // si falla cargar la imagen, resolvemos para seguir con las demás
+                  res();
+                };
+              });
+              // si la imagen cargó correctamente, la agregamos (si no, se salta)
+              if (img.width && img.height) {
+let formato = "JPEG";
+
+if (prod.imagen.toLowerCase().includes("png")) {
+  formato = "PNG";
+} else if (prod.imagen.toLowerCase().includes("webp")) {
+  formato = "WEBP";
+}
+
+doc.addImage(img, formato, 14, y, 20, 20);                doc.setFontSize(10);
+                const nombreTexto = `${prod.nombre} (${prod.codigo})`;
+                // ajuste de texto si es muy largo
+                doc.text(nombreTexto, 38, y + 10);
+                y += 25;
+                if (y > 270) {
+                  doc.addPage();
+                  y = 20;
+                }
+              }
+            } catch (err) {
+              // ignorar errores de imágenes para no romper la generación
+              console.warn("Error cargando imagen para PDF:", prod.imagen, err);
+            }
+          }
+        }
+
+        doc.save("inventario_tr_accesorios.pdf");
+      };
+
+      logo.onerror = () => {
+        // si no se carga el logo, igual intentamos generar la tabla y las imágenes
+        (async () => {
+          const snapshot = await get(ref(db, "productos_ci"));
+          const productos = snapshot.val();
+          if (!productos) {
+            Swal.fire("Nada para imprimir", "No hay productos en inventario", "info");
+            return;
+          }
+          const rows = [];
+          for (const [id, prod] of Object.entries(productos)) {
+            rows.push([
+              prod.codigo || id,
+              prod.nombre || "",
+              prod.cantidad || 0,
+              "Q" + (prod.precioSugerido || 0).toFixed(2),
+              "Q" + (prod.precioTope || 0).toFixed(2),
+              prod.proveedor || ""
+            ]);
+          }
+          doc.autoTable({
+            startY: 15,
+            head: [["Código", "Nombre", "Cantidad", "Sugerido", "Tope", "Proveedor"]],
+            body: rows,
+            theme: "striped",
+            headStyles: { fillColor: [41, 128, 185] },
+            styles: { fontSize: 9, cellPadding: 3 },
+          });
+          doc.save("inventario_tr_accesorios_ci.pdf");
+        })();
+      };
     });
-  };
-});
 
   </script>
 </head>
@@ -380,6 +487,8 @@ document.getElementById("btn-pdf").addEventListener("click", () => {
           <li><a href="sales_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-basket"></i></div><div class="navLateral-body-cr hide-on-tablet">Compras</div></a></li>
           <li><a href="providers_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-truck"></i></div><div class="navLateral-body-cr hide-on-tablet">Proveedores</div></a></li>
           <li><a href="ventas_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Ventas</div></a></li>
+          		<li><a href="dashboard_ci.html" class="full-width active"><div class="navLateral-body-cl"><i class="zmdi zmdi-chart"></i></div><div class="navLateral-body-cr hide-on-tablet">Dashboard</div></a></li>
+
           <li><a href="cuentas-cobrar_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-balance-wallet"></i></div><div class="navLateral-body-cr hide-on-tablet">Cuentas por cobrar</div></a></li>
           </ul>
       </nav>

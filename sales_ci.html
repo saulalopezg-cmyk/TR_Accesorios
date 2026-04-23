@@ -66,6 +66,8 @@
           <li><a href="sales_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-basket"></i></div><div class="navLateral-body-cr hide-on-tablet">Compras</div></a></li>
           <li><a href="providers_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-truck"></i></div><div class="navLateral-body-cr hide-on-tablet">Proveedores</div></a></li>
           <li><a href="ventas_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-shopping-cart"></i></div><div class="navLateral-body-cr hide-on-tablet">Ventas</div></a></li>
+          		<li><a href="dashboard_ci.html" class="full-width active"><div class="navLateral-body-cl"><i class="zmdi zmdi-chart"></i></div><div class="navLateral-body-cr hide-on-tablet">Dashboard</div></a></li>
+
           <li><a href="cuentas-cobrar_ci.html" class="full-width"><div class="navLateral-body-cl"><i class="zmdi zmdi-balance-wallet"></i></div><div class="navLateral-body-cr hide-on-tablet">Cuentas por cobrar</div></a></li>
          </ul>
       </nav>
@@ -327,11 +329,11 @@ if (compraEditando) {
   document.getElementById("btn-pdf-compras").addEventListener("click", () => {
 	const doc = new window.jspdf.jsPDF();
   doc.setFontSize(16);
-  doc.text("HISTORIAL DE COMPRAS – TR ACCESORIOS", 20, 20);
+  doc.text("HISTORIAL DE COMPRAS CI– TR ACCESORIOS", 20, 20);
   doc.setFontSize(10);
   doc.text("Fecha: " + new Date().toLocaleDateString(), 20, 28);
 
-  get(ref(db, "compras")).then((snapshot) => {
+  get(ref(db, "compras_ci")).then((snapshot) => {
     const data = snapshot.val();
     if (!data) {
       Swal.fire("Nada para imprimir", "No hay compras registradas", "info");
@@ -350,7 +352,7 @@ if (compraEditando) {
       theme: "striped"
     });
 
-    doc.save("compras_tr_accesorios.pdf");
+    doc.save("compras_tr_accesorios_ci.pdf");
   });
 });
   document.getElementById("filtroCompras").addEventListener("input", (e) => {
