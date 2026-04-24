@@ -387,10 +387,10 @@ get(ref(db, "productos_ci")).then(snapshot => {
   listaProductos.innerHTML = "";
 
   Object.entries(data).forEach(([codigo, producto]) => {
-    productosCache[codigo] = producto;
+   productosCache[producto.codigo] = producto;
 
     const option = document.createElement("option");
-    option.value = `${codigo} - ${producto.nombre}`; // visible y escribible
+option.value = `${producto.codigo} - ${producto.nombre}`;
     listaProductos.appendChild(option);
   });
 });
