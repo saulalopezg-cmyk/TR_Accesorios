@@ -103,7 +103,12 @@
             <div class="full-width panel-content">
 <form id="form-venta">
   <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-  <input type="text" id="ventaVendedor" class="mdl-textfield__input" />
+  <select id="ventaVendedor" class="mdl-textfield__input">
+    <option value="">Seleccione vendedor</option>
+    <option value="Manuel Barrera">Manuel Barrera</option>
+    <option value="Carlos Chacón">Carlos Chacón</option>
+    <option value="Daniel Monterroso">Daniel Monterroso</option>
+  </select>
   <label class="mdl-textfield__label">Vendedor</label>
 </div>
             <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
@@ -114,11 +119,12 @@
 
 
 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
-  <select id="ventaFormaPago" class="mdl-textfield__input">
-    <option value="efectivo">Efectivo</option>
-    <option value="credito">Crédito</option>
-    <option value="transferencia">Transferencia</option>
-  </select>
+ <select id="ventaFormaPago" class="mdl-textfield__input">
+  <option value="efectivo">Efectivo</option>
+  <option value="credito">Crédito</option>
+  <option value="transferencia">Transferencia</option>
+  <option value="tarjeta">Tarjeta de crédito</option>
+</select>
   <label class="mdl-textfield__label">Forma de pago</label>
 </div>
 
@@ -140,6 +146,18 @@
     <input type="file" id="ventaImagen" accept="image/*" class="mdl-textfield__input" />
   </div>
 
+</div>
+
+<!-- TARJETA DE CRÉDITO -->
+<div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" id="contenedorCuotas" style="display:none;">
+  <select id="ventaCuotas" class="mdl-textfield__input">
+    <option value="">Seleccione cuotas</option>
+    <option value="1">1 pago</option>
+    <option value="3">3 pagos</option>
+    <option value="6">6 pagos</option>
+    <option value="12">12 pagos</option>
+  </select>
+  <label class="mdl-textfield__label">Cantidad de pagos</label>
 </div>
 
                 <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
@@ -521,10 +539,14 @@ const existente = carrito.find(p =>
 });
 
 
+const contenedorCuotas = document.getElementById("contenedorCuotas");
+const cuotasInput = document.getElementById("ventaCuotas");
+
 formaPagoInput.addEventListener("change", () => {
 
   contenedorDiasCredito.style.display = "none";
   contenedorTransferencia.style.display = "none";
+  contenedorCuotas.style.display = "none";
 
   if (formaPagoInput.value === "credito") {
     contenedorDiasCredito.style.display = "block";
@@ -534,9 +556,12 @@ formaPagoInput.addEventListener("change", () => {
     contenedorTransferencia.style.display = "block";
   }
 
+  if (formaPagoInput.value === "tarjeta") {
+    contenedorCuotas.style.display = "block";
+  }
+
   if (window.componentHandler) componentHandler.upgradeDom();
 });
-
   document.getElementById("btn-finalizarVenta").addEventListener("click", async () => {
     
 const clienteTexto = clienteInput.value.trim();
@@ -549,6 +574,12 @@ if (!vendedor) {
 const formaPago = formaPagoInput.value;
 const diasCredito = parseInt(diasCreditoInput.value) || 0;
 const comprobante = comprobanteInput.value.trim();
+const cuotas = parseInt(cuotasInput.value) || 0;
+
+if (formaPago === "tarjeta" && cuotas <= 0) {
+  Swal.fire("Datos incompletos", "Debes seleccionar la cantidad de pagos", "warning");
+  return;
+}
 
 if (formaPago === "credito" && diasCredito <= 0) {
   Swal.fire("Crédito inválido", "Debes indicar los días de crédito", "warning");
@@ -597,6 +628,7 @@ if (formaPago === "transferencia" && imagenInput.files[0]) {
   fecha: new Date().toISOString().split("T")[0],
   formaPago,
 diasCredito: formaPago === "credito" ? diasCredito : 0,
+cuotas: formaPago === "tarjeta" ? cuotas : 0,
 comprobante: formaPago === "transferencia" ? comprobante : null,
 imagenComprobante: imagenBase64,
 estadoPago: formaPago === "credito" ? "pendiente" : "pagado",
@@ -651,18 +683,13 @@ diasCreditoInput.value = "";
 comprobanteInput.value = "";
 imagenInput.value = "";
 contenedorDiasCredito.style.display = "none";
-contenedorTransferencia.style.display = "none";
+contenedorTransferencia.style.display = "none"; 
 
       idVentaEditando = null;
       if (window.componentHandler) componentHandler.upgradeDom();
       Swal.fire("Venta registrada", "", "success");
-    }).catch(err => {
-      console.error(err);
-      Swal.fire("Error", "No se pudo guardar la venta", "error");
-    });
-  });
 
-  if (venta.formaPago === "credito") {
+      if (venta.formaPago === "credito") {
   const cuenta = {
     cliente: venta.cliente,
     clienteLibre: venta.clienteLibre || null,
@@ -690,6 +717,12 @@ contenedorTransferencia.style.display = "none";
 
   await push(ref(db, "cuentasPorCobrar"), cuenta);
 }
+    }).catch(err => {
+      console.error(err);
+      Swal.fire("Error", "No se pudo guardar la venta", "error");
+    });
+  });
+
   onValue(ref(db, "ventas"), (snapshot) => {
     historial = snapshot.val() || {};
     renderizarVentas();
@@ -846,7 +879,7 @@ await new Promise(r => logo.onload = r);
   doc.setFontSize(14);
   doc.text("TR ACCESORIOS", 43, yOffset + 10);
   doc.setFontSize(10);
-  doc.text("FACTURA", 43, yOffset + 16);
+  doc.text("NOTA DE ENVIO", 43, yOffset + 16);
 
   doc.setFontSize(9);
   doc.text(`Código venta: ${codigoVenta}`, 150, yOffset + 12);

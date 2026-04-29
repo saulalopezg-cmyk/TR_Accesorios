@@ -374,6 +374,13 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
+    function formatoQ(numero) {
+  return "Q" + new Intl.NumberFormat("es-GT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number(numero || 0));
+}
+
     window.logout = function () {
       signOut(auth).then(() => {
         window.location.href = "index.html";
@@ -518,11 +525,11 @@
         pendiente += Number(c.saldo || 0);
       });
 
-      document.getElementById("totalVentas").innerText = "Q" + totalVentas.toFixed(2);
-      document.getElementById("ventasHoy").innerText = "Q" + ventasHoy.toFixed(2);
-      document.getElementById("ventasMes").innerText = "Q" + ventasMes.toFixed(2);
-      document.getElementById("ventasCredito").innerText = "Q" + ventasCredito.toFixed(2);
-      document.getElementById("pendienteCobro").innerText = "Q" + pendiente.toFixed(2);
+     document.getElementById("totalVentas").innerText = formatoQ(totalVentas);
+document.getElementById("ventasHoy").innerText = formatoQ(ventasHoy);
+document.getElementById("ventasMes").innerText = formatoQ(ventasMes);
+document.getElementById("ventasCredito").innerText = formatoQ(ventasCredito);
+document.getElementById("pendienteCobro").innerText = formatoQ(pendiente);
 
       const tablaResumenTiendas = document.getElementById("tablaResumenTiendas");
       tablaResumenTiendas.innerHTML = "";
@@ -531,7 +538,7 @@
         tablaResumenTiendas.innerHTML += `
           <tr>
             <td>${tienda}</td>
-            <td>Q${datos.total.toFixed(2)}</td>
+            <td>${formatoQ(datos.total)}</td>
           </tr>
         `;
       });
@@ -543,10 +550,10 @@
         tablaTiendas.innerHTML += `
           <tr>
             <td>${tienda}</td>
-            <td>Q${datos.hoy.toFixed(2)}</td>
-            <td>Q${datos.mes.toFixed(2)}</td>
-            <td>Q${datos.total.toFixed(2)}</td>
-            <td>Q${datos.credito.toFixed(2)}</td>
+            <td>${formatoQ(datos.hoy)}</td>
+<td>${formatoQ(datos.mes)}</td>
+<td>${formatoQ(datos.total)}</td>
+<td>${formatoQ(datos.credito)}</td>
           </tr>
         `;
       });
@@ -561,7 +568,7 @@
           listaVendedores.innerHTML += `
             <li>
               <strong>${nombre}</strong><br>
-              Total vendido: Q${total.toFixed(2)}
+              Total vendido: ${formatoQ(total)}
             </li>
           `;
         });
@@ -591,10 +598,10 @@
             <tr>
               <td>${nombre}</td>
               <td>${datos.tienda}</td>
-              <td>Q${datos.total.toFixed(2)}</td>
-              <td>Q${datos.hoy.toFixed(2)}</td>
-              <td>Q${datos.mes.toFixed(2)}</td>
-              <td>Q${datos.credito.toFixed(2)}</td>
+              <td>${formatoQ(datos.total)}</td>
+<td>${formatoQ(datos.hoy)}</td>
+<td>${formatoQ(datos.mes)}</td>
+<td>${formatoQ(datos.credito)}</td>
             </tr>
           `;
         });

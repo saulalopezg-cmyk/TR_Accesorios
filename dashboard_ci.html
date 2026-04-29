@@ -106,6 +106,13 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
+    function formatoQ(numero) {
+  return "Q" + new Intl.NumberFormat("es-GT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number(numero || 0));
+}
+
     let rolUsuario = "";
 
     window.logout = function () {
@@ -220,10 +227,10 @@
           }
         });
 
-        document.getElementById("totalVentas").innerText = "Q" + totalVentas.toFixed(2);
-        document.getElementById("ventasHoy").innerText = "Q" + ventasHoy.toFixed(2);
-        document.getElementById("ventasMes").innerText = "Q" + ventasMes.toFixed(2);
-        document.getElementById("ventasCredito").innerText = "Q" + ventasCredito.toFixed(2);
+        document.getElementById("totalVentas").innerText = formatoQ(totalVentas);
+document.getElementById("ventasHoy").innerText = formatoQ(ventasHoy);
+document.getElementById("ventasMes").innerText = formatoQ(ventasMes);
+document.getElementById("ventasCredito").innerText = formatoQ(ventasCredito);
 
        onValue(ref(db, "cuentasPorCobrar_ci"), (snapshotCxc) => {
   const cuentas = snapshotCxc.val() || {};
@@ -253,7 +260,7 @@ if (c.estado === "pendiente" && c.fechaVencimiento) {
     listaMorosos.innerHTML += `
       <li style="color:red;">
         Venta ${c.codigoVenta} – vencida hace ${Math.abs(diffDias)} día(s)
-        <br>Saldo: Q${c.saldo.toFixed(2)}
+        <br>Saldo: ${formatoQ(c.saldo)}
       </li>
     `;
   }
@@ -268,14 +275,14 @@ if (c.estado === "pendiente" && c.fechaVencimiento) {
       listaVencimientos.innerHTML += `
         <li style="color:#e67e22;">
           Venta ${c.codigoVenta} – vence en ${diffDias} día(s)
-          <br>Saldo: Q${c.saldo.toFixed(2)}
+          <br>Saldo: ${formatoQ(c.saldo)} 
         </li>
       `;
     }
 
   });
 
-  document.getElementById("pendienteCobro").innerText = "Q" + pendiente.toFixed(2);
+  document.getElementById("pendienteCobro").innerText = formatoQ(pendiente);
 });
 
 
@@ -290,7 +297,7 @@ if (c.estado === "pendiente" && c.fechaVencimiento) {
           listaVendedores.innerHTML += `
             <li>
               <strong>${nombre}</strong><br>
-              Total vendido: Q${total.toFixed(2)}
+              Total vendido: ${formatoQ(total)}
             </li>
           `;
         });
@@ -318,10 +325,10 @@ if (c.estado === "pendiente" && c.fechaVencimiento) {
           tabla.innerHTML += `
             <tr>
               <td>${nombre}</td>
-              <td>Q${datos.total.toFixed(2)}</td>
-              <td>Q${datos.hoy.toFixed(2)}</td>
-              <td>Q${datos.mes.toFixed(2)}</td>
-              <td>Q${datos.credito.toFixed(2)}</td>
+              <td>${formatoQ(datos.total)}</td>
+<td>${formatoQ(datos.hoy)}</td>
+<td>${formatoQ(datos.mes)}</td>
+<td>${formatoQ(datos.credito)}</td>
             </tr>
           `;
         });
